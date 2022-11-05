@@ -6,16 +6,27 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.autograd import Function
-import torch.utils.checkpoint as cp
-from mmcv.cnn import (UPSAMPLE_LAYERS, ConvModule, build_activation_layer,
-                      build_norm_layer, build_upsample_layer, constant_init,
-                      kaiming_init)
-from mmcv.runner import load_checkpoint
-from mmcv.utils.parrots_wrapper import _BatchNorm
-from mmseg.utils import get_root_logger
+#from torch.autograd import Function
+#import torch.utils.checkpoint as cp
+#from mmcv.cnn import (UPSAMPLE_LAYERS, ConvModule, build_activation_layer,
+#                      build_norm_layer, build_upsample_layer, constant_init,
+#                      kaiming_init)
+#from mmcv.runner import load_checkpoint
+#from mmcv.utils.parrots_wrapper import _BatchNorm
+#from mmseg.utils import get_root_logger
 
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d, conv2d_gradfix
+
+
+def make_kernel(k):
+    k = torch.tensor(k, dtype=torch.float32)
+
+    if k.ndim == 1:
+        k = k[None, :] * k[:, None]
+
+    k /= k.sum()
+
+    return k
 
 
 # Source: text2human
@@ -162,20 +173,24 @@ class ResBlock(nn.Module):
         self.out_channel = out_channel
         self.attr_channel = attr_channel
 
-        self.fusion = nn.Sequential(
+        print(in_channel)
+        #print(out_channel)
+        print(attr_channel)
+        
+        '''self.fusion = nn.Sequential(
             nn.Linear(in_channel+attr_channel, in_channel)
-        )
+        )'''
 
-        self.conv1 = ConvLayer(in_channel, in_channel, 3)
-        self.conv2 = ConvLayer(in_channel, out_channel, 3, downsample=True)
+        self.conv1 = ConvLayer(in_channel+128, in_channel+128, 3)
+        self.conv2 = ConvLayer(in_channel+128, out_channel, 3, downsample=True)
 
         self.skip = ConvLayer(
-            in_channel, out_channel, 1, downsample=True, activate=False, bias=False
+            in_channel+128, out_channel, 1, downsample=True, activate=False, bias=False
         )
 
     def forward(self, input):
-
-        input = self.fusion(input)
+        print(input.size())
+        #input = self.fusion(input)
 
         out = self.conv1(input)
         out = self.conv2(out)
@@ -190,7 +205,7 @@ class PoseEncoder(nn.Module):
     def __init__(self, ngf=64, blur_kernel=[1, 3, 3, 1], size=256, attr_dim=128):
         super().__init__()
         self.size = size
-        convs = [ConvLayer(3, ngf, 1)]                      # in 3 out 64
+        convs = [ConvLayer(1, ngf, 1)]                      # in 1 out 64
         convs.append(ResBlock(ngf, ngf*2, attr_dim, blur_kernel))     # in 64 out 128
         convs.append(ResBlock(ngf*2, ngf*4, attr_dim, blur_kernel))
         convs.append(ResBlock(ngf*4, ngf*8, attr_dim, blur_kernel))
@@ -209,12 +224,21 @@ class PoseEncoder(nn.Module):
         for idx, conv in enumerate(self.convs):
             if idx != 0:
                 _, _, h, w = x.size()
+                #print(type(x))
+                #print(type(attr_embedding.view(b, c, 1, 1).expand(b, c, h, w)))
+                print(torch.cat(
+                        (x,
+                        attr_embedding.view(b, c, 1, 1).expand(b, c, h, w)), 
+                        dim=1
+                    ).size())
                 x = conv(
                     torch.cat(
-                        x,
-                        attr_embedding.view(b, c, 1, 1).expand(b, c, h, w), dim=1
+                        (x,
+                        attr_embedding.view(b, c, 1, 1).expand(b, c, h, w)), 
+                        dim=1
                     )
                 )
+                
             else:
                 x = conv(x)
 
