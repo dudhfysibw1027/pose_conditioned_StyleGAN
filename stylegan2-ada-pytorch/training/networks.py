@@ -14,6 +14,7 @@ from torch_utils.ops import conv2d_resample
 from torch_utils.ops import upfirdn2d
 from torch_utils.ops import bias_act
 from torch_utils.ops import fma
+import torch.nn as nn
 import sys, os
 sys.path.append('/content/pose_conditioned_StyleGAN/stylegan2-ada-pytorch/training')
 from main import main2
