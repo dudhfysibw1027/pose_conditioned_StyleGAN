@@ -14,6 +14,7 @@ from torch_utils.ops import conv2d_resample
 from torch_utils.ops import upfirdn2d
 from torch_utils.ops import bias_act
 from torch_utils.ops import fma
+import main
 
 #----------------------------------------------------------------------------
 
@@ -502,7 +503,8 @@ class SynthesisNetwork(torch.nn.Module):
                 block_ws.append(ws.narrow(1, w_idx, block.num_conv + block.num_torgb))
                 w_idx += block.num_conv
 
-        x = img = None
+        x = img = main
+        
         for res, cur_ws in zip(self.block_resolutions, block_ws):
             block = getattr(self, f'b{res}')
             x, img = block(x, img, cur_ws, **block_kwargs)
