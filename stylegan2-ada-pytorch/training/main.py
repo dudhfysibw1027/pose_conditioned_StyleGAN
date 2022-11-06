@@ -37,7 +37,7 @@ def main():
 
     x = my_pose_encoder(input=my_item_dict["densepose"], attr_embedding=my_attr_embedding)
 
-    print(x.size())
+    return x
 
 
 # Press the green button in the gutter to run the script.
