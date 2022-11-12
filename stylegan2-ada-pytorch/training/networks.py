@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -325,6 +325,8 @@ class SynthesisLayer(torch.nn.Module):
     def forward(self, x, w, noise_mode='random', fused_modconv=True, gain=1):
         assert noise_mode in ['random', 'const', 'none']
         in_resolution = self.resolution // self.up
+        if in_resolution == 2:
+          in_resolution = 16
         misc.assert_shape(x, [None, self.weight.shape[1], in_resolution, in_resolution])
         styles = self.affine(w)
 
@@ -425,12 +427,15 @@ class SynthesisBlock(torch.nn.Module):
                 fused_modconv = (not self.training) and (dtype == torch.float32 or int(x.shape[0]) == 1)
 
         # Input.
-        if self.in_channels == 0:
-            x = self.const.to(dtype=dtype, memory_format=memory_format)
-            x = x.unsqueeze(0).repeat([ws.shape[0], 1, 1, 1])
-        else:
-            misc.assert_shape(x, [None, self.in_channels, self.resolution // 2, self.resolution // 2])
+        if self.in_channels == 512:
+            #x = self.const.to(dtype=dtype, memory_format=memory_format)
+            #x = x.unsqueeze(0).repeat([ws.shape[0], 1, 1, 1])
+            misc.assert_shape(x, [None, self.in_channels, 16, 16])
             x = x.to(dtype=dtype, memory_format=memory_format)
+        else:
+            if self.resolution > 4:
+              misc.assert_shape(x, [None, self.in_channels, self.resolution // 2, self.resolution // 2])
+              x = x.to(dtype=dtype, memory_format=memory_format)
 
         # Main layers.
         if self.in_channels == 0:
@@ -483,7 +488,7 @@ class SynthesisNetwork(torch.nn.Module):
         self.num_ws = 0
         for res in self.block_resolutions:
             # define input and output of blocks of each resolution
-            in_channels = channels_dict[res // 2] if res > 4 else 0
+            in_channels = channels_dict[res // 2] if res > 4 else 512
             out_channels = channels_dict[res]
             # bools: true or false
             use_fp16 = (res >= fp16_resolution)
@@ -505,8 +510,8 @@ class SynthesisNetwork(torch.nn.Module):
                 block = getattr(self, f'b{res}')
                 block_ws.append(ws.narrow(1, w_idx, block.num_conv + block.num_torgb))
                 w_idx += block.num_conv
-
-        x = img = main2()
+        encoder = main2()
+        x = img = encoder.main3()
         print(x)
         
         for res, cur_ws in zip(self.block_resolutions, block_ws):
