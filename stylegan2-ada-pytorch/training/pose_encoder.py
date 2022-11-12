@@ -14,7 +14,8 @@ from torch.nn import functional as F
 #from mmcv.runner import load_checkpoint
 #from mmcv.utils.parrots_wrapper import _BatchNorm
 #from mmseg.utils import get_root_logger
-
+import sys, os
+sys.path.append('/content/pose_conditioned_StyleGAN/stylegan2-ada-pytorch/training/ops')
 from op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d, conv2d_gradfix
 
 
